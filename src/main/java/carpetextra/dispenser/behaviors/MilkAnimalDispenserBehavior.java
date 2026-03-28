@@ -3,41 +3,40 @@ package carpetextra.dispenser.behaviors;
 import java.util.List;
 
 import carpetextra.dispenser.DispenserBehaviorHelper;
-import net.minecraft.block.DispenserBlock;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.passive.AnimalEntity;
-import net.minecraft.entity.passive.CowEntity;
-import net.minecraft.entity.passive.GoatEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.predicate.entity.EntityPredicates;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.math.BlockPointer;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.dispenser.BlockSource;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.animal.Animal;
+import net.minecraft.world.entity.animal.cow.Cow;
+import net.minecraft.world.entity.animal.goat.Goat;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.DispenserBlock;
+import net.minecraft.world.phys.AABB;
+import org.jetbrains.annotations.NotNull;
 
 public class MilkAnimalDispenserBehavior extends DispenserBehaviorHelper {
     @Override
-    protected ItemStack dispenseSilently(BlockPointer pointer, ItemStack stack) {
+    protected @NotNull ItemStack execute(BlockSource source, @NotNull ItemStack stack) {
         this.setSuccess(true);
-        ServerWorld world = pointer.world();
-        BlockPos frontBlockPos = pointer.pos().offset(pointer.state().get(DispenserBlock.FACING));
+        ServerLevel level = source.level();
+        BlockPos frontBlockPos = source.pos().offset(source.state().getValue(DispenserBlock.FACING).getUnitVec3i());
 
         // check if non-baby cows/mooshrooms/goats are in front of dispenser
-        List<AnimalEntity> milkableAnimals = world.getEntitiesByClass(AnimalEntity.class, new Box(frontBlockPos), EntityPredicates.VALID_LIVING_ENTITY.and((animalEntity) -> {
-            return !((AnimalEntity) animalEntity).isBaby() && (animalEntity instanceof CowEntity || animalEntity instanceof GoatEntity);
-        }));
+        List<Animal> milkableAnimals = level.getEntitiesOfClass(Animal.class, new AABB(frontBlockPos), (animalEntity ->
+            !animalEntity.isBaby() && (animalEntity instanceof  Cow || animalEntity instanceof Goat)));
 
         if(!milkableAnimals.isEmpty()) {
             // play milking sound for a random animal in front of dispenser
-            AnimalEntity milkAnimal = milkableAnimals.get(world.random.nextInt(milkableAnimals.size()));
-            world.playSound(null, frontBlockPos, getMilkSound(milkAnimal), SoundCategory.NEUTRAL, 1.0F, 1.0F);
+            Animal milkAnimal = milkableAnimals.get(level.getRandom().nextInt(milkableAnimals.size()));
+            level.playSound(null, frontBlockPos, getMilkSound(milkAnimal), SoundSource.NEUTRAL, 1.0F, 1.0F);
 
             // add or dispense milk bucket stack
-            return this.addOrDispense(pointer, stack, new ItemStack(Items.MILK_BUCKET));
+            return this.addOrDispense(source, stack, new ItemStack(Items.MILK_BUCKET));
         }
 
         // fail to dispense
@@ -45,10 +44,10 @@ public class MilkAnimalDispenserBehavior extends DispenserBehaviorHelper {
         return stack;
     }
 
-    private static SoundEvent getMilkSound(AnimalEntity animal) {
+    private static SoundEvent getMilkSound(Animal animal) {
         if(animal.getType() == EntityType.GOAT) {
-            return ((GoatEntity) animal).isScreaming() ? SoundEvents.ENTITY_GOAT_SCREAMING_MILK : SoundEvents.ENTITY_GOAT_MILK;
+            return ((Goat) animal).isScreamingGoat() ? SoundEvents.GOAT_SCREAMING_MILK : SoundEvents.GOAT_MILK;
         }
-        return SoundEvents.ENTITY_COW_MILK;
+        return SoundEvents.COW_MILK;
     }
 }

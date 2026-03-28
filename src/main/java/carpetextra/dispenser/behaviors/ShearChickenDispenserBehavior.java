@@ -1,41 +1,41 @@
 package carpetextra.dispenser.behaviors;
 
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.dispenser.BlockSource;
+import net.minecraft.core.dispenser.OptionalDispenseItemBehavior;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.animal.chicken.Chicken;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.DispenserBlock;
+import net.minecraft.world.phys.AABB;
+import org.jetbrains.annotations.NotNull;
+
 import java.util.List;
 
-import net.minecraft.block.DispenserBlock;
-import net.minecraft.block.dispenser.FallibleItemDispenserBehavior;
-import net.minecraft.entity.EntityType;
-import net.minecraft.entity.passive.AnimalEntity;
-import net.minecraft.entity.passive.ChickenEntity;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.predicate.entity.EntityPredicates;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPointer;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 
-public class ShearChickenDispenserBehavior extends FallibleItemDispenserBehavior {
+
+public class ShearChickenDispenserBehavior extends OptionalDispenseItemBehavior {
     @Override
-    protected ItemStack dispenseSilently(BlockPointer pointer, ItemStack stack) {
+    protected @NotNull ItemStack execute(BlockSource source, @NotNull ItemStack stack) {
         this.setSuccess(true);
-        ServerWorld world = pointer.world();
-        BlockPos frontBlockPos = pointer.pos().offset(pointer.state().get(DispenserBlock.FACING));
-        Box frontBlockBox = new Box(frontBlockPos);
+        ServerLevel level = source.level();
+        BlockPos frontBlockPos = source.pos().offset(source.state().getValue(DispenserBlock.FACING).getUnitVec3i());
+        AABB frontBlockBox = new AABB(frontBlockPos);
 
         // get adult chickens in front of dispenser
-        List<ChickenEntity> chickens = world.getEntitiesByType(EntityType.CHICKEN, frontBlockBox, EntityPredicates.VALID_LIVING_ENTITY.and((chickenEntity) -> !((AnimalEntity) chickenEntity).isBaby()));
+        List<Chicken> chickens = level.getEntitiesOfClass(Chicken.class, frontBlockBox, (chickenEntity ->
+                !chickenEntity.isBaby() && chickenEntity.isAlive()));
 
         if(!chickens.isEmpty()) {
             // choose a random chicken in front of dispenser to shear
-            ChickenEntity chicken = chickens.get(world.random.nextInt(chickens.size()));
-
+            Chicken chicken = chickens.get(level.getRandom().nextInt(chickens.size()));
             // damage chicken, drop feather if successful
-            if(chicken.damage(world, world.getDamageSources().generic(), 1)) {
-                chicken.dropItem(world, Items.FEATHER);
+            if(chicken.hurtServer(level, level.damageSources().generic(), 1)) {
+                chicken.drop(new ItemStack(Items.FEATHER), false, false);
 
                 // damage shears, remove if broken
-                stack.damage(1, world, null, (item) -> stack.setCount(0));
+                stack.hurtAndBreak(1, level, null, (item) -> stack.setCount(0));
 
                 // return shears
                 return stack;

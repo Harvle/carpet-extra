@@ -2,11 +2,10 @@ package carpetextra.mixins;
 
 import java.util.Map;
 
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.FlowerPotBlock;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Accessor;
-
-import net.minecraft.block.Block;
-import net.minecraft.block.FlowerPotBlock;
 
 @Mixin(FlowerPotBlock.class)
 public interface FlowerPotBlock_ContentAccessorMixin {

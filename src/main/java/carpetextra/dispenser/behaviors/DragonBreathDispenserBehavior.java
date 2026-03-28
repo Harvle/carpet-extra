@@ -1,40 +1,43 @@
 package carpetextra.dispenser.behaviors;
 
-import net.minecraft.block.Block;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.DispenserBlock;
-import net.minecraft.block.dispenser.FallibleItemDispenserBehavior;
-import net.minecraft.item.ItemStack;
-import net.minecraft.particle.DragonBreathParticleEffect;
-import net.minecraft.particle.ParticleTypes;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.math.BlockPointer;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Vec3d;
 
-public class DragonBreathDispenserBehavior extends FallibleItemDispenserBehavior {
+import carpet.script.annotation.Locator;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.dispenser.BlockSource;
+import net.minecraft.core.dispenser.OptionalDispenseItemBehavior;
+import net.minecraft.core.particles.ParticleOptions;
+import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.DispenserBlock;
+import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.NotNull;
+
+public class DragonBreathDispenserBehavior extends OptionalDispenseItemBehavior {
     @Override
-    protected ItemStack dispenseSilently(BlockPointer pointer, ItemStack stack) {
+    protected @NotNull ItemStack execute(BlockSource source, @NotNull ItemStack stack) {
         this.setSuccess(true);
-        ServerWorld world = pointer.world();
-        BlockPos frontBlockPos = pointer.pos().offset(pointer.state().get(DispenserBlock.FACING));
-        Block frontBlock = world.getBlockState(frontBlockPos).getBlock();
+        ServerLevel level = source.level();
+        BlockPos frontBlockPos = source.pos().offset(source.state().getValue(DispenserBlock.FACING).getUnitVec3i());
+        Block frontBlock = level.getBlockState(frontBlockPos).getBlock();
 
-        // check if cobble, place end stone
+        // check if cobblestone, place end stone
         if(frontBlock == Blocks.COBBLESTONE) {
-            world.setBlockState(frontBlockPos, Blocks.END_STONE.getDefaultState());
+            level.setBlock(frontBlockPos, Blocks.END_STONE.defaultBlockState(), Block.UPDATE_ALL);
 
             // play dragon fireball shoot sound
-            world.playSound(null, frontBlockPos, SoundEvents.ENTITY_ENDER_DRAGON_SHOOT, SoundCategory.BLOCKS, 1.0F, (world.random.nextFloat() - world.random.nextFloat()) * 0.2F + 1.0F);
+            level.playSound(null, frontBlockPos, SoundEvents.ENDER_DRAGON_SHOOT, SoundSource.BLOCKS, 1.0F, (level.getRandom().nextFloat() - level.getRandom().nextFloat()) * 0.2F + 1.0F);
 
             // spawn some dragon breath particles around end stone
-            Vec3d center = Vec3d.ofCenter(frontBlockPos);
-            world.spawnParticles(DragonBreathParticleEffect.of(ParticleTypes.DRAGON_BREATH, 1), center.getX(), center.getY(), center.getZ(), 10, 0.5, 0.5, 0.5, 0.01);
+            Vec3 center = Vec3.atCenterOf(frontBlockPos);
+            level.sendParticles((ParticleOptions) ParticleTypes.DRAGON_BREATH, center.x, center.y, center.z, 10, 0.5, 0.5, 0.5, 0.01);
 
             // decrement dragon breath and return
-            stack.decrement(1);
+            stack.shrink(1);
             return stack;
         }
 

@@ -1,39 +1,35 @@
 package carpetextra.dispenser.behaviors;
 
 import carpetextra.dispenser.DispenserBehaviorHelper;
-import net.minecraft.block.AbstractCauldronBlock;
-import net.minecraft.block.Block;
-import net.minecraft.block.BlockState;
-import net.minecraft.block.Blocks;
-import net.minecraft.block.DispenserBlock;
-import net.minecraft.block.LeveledCauldronBlock;
-import net.minecraft.block.ShulkerBoxBlock;
-import net.minecraft.component.DataComponentTypes;
-import net.minecraft.component.type.BannerPatternsComponent;
-import net.minecraft.component.type.PotionContentsComponent;
-import net.minecraft.item.BannerItem;
-import net.minecraft.item.Item;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.Items;
-import net.minecraft.potion.Potions;
-import net.minecraft.registry.entry.RegistryEntry;
-import net.minecraft.registry.tag.ItemTags;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.sound.SoundCategory;
-import net.minecraft.sound.SoundEvent;
-import net.minecraft.sound.SoundEvents;
-import net.minecraft.util.math.BlockPointer;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.event.GameEvent;
+import net.minecraft.core.BlockPos;
+import net.minecraft.core.Holder;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.core.dispenser.BlockSource;
+import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvent;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
+import net.minecraft.tags.ItemTags;
+import net.minecraft.world.item.BannerItem;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.Items;
+import net.minecraft.world.item.alchemy.PotionContents;
+import net.minecraft.world.item.alchemy.Potions;
+import net.minecraft.world.level.block.*;
+import net.minecraft.world.level.block.entity.BannerPatternLayers;
+import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.gameevent.GameEvent;
+import org.jetbrains.annotations.NotNull;
 
 public class CauldronWaterDispenserBehavior extends DispenserBehaviorHelper {
     @Override
-    protected ItemStack dispenseSilently(BlockPointer pointer, ItemStack stack) {
+    protected @NotNull ItemStack execute(BlockSource source, ItemStack stack) {
         this.setSuccess(true);
         Item item = stack.getItem();
-        ServerWorld world = pointer.world();
-        BlockPos frontBlockPos = pointer.pos().offset(pointer.state().get(DispenserBlock.FACING));
-        BlockState frontBlockState = world.getBlockState(frontBlockPos);
+        ServerLevel level = source.level();
+        BlockPos frontBlockPos = source.pos().offset(source.state().getValue(DispenserBlock.FACING).getUnitVec3i());
+        BlockState frontBlockState = level.getBlockState(frontBlockPos);
         Block frontBlock = frontBlockState.getBlock();
 
         if (frontBlock == Blocks.WATER_CAULDRON) {
@@ -41,66 +37,66 @@ public class CauldronWaterDispenserBehavior extends DispenserBehaviorHelper {
                 // check if cauldron is not full
                 if (!((AbstractCauldronBlock) frontBlock).isFull(frontBlockState)) {
                     // increase cauldron level
-                    int level = frontBlockState.get(LeveledCauldronBlock.LEVEL);
-                    BlockState cauldronState = frontBlockState.with(LeveledCauldronBlock.LEVEL, level + 1);
-                    setCauldron(world, frontBlockPos, cauldronState, SoundEvents.ITEM_BOTTLE_EMPTY, GameEvent.FLUID_PLACE);
+                    int fillLevel = frontBlockState.getValue(LayeredCauldronBlock.LEVEL);
+                    BlockState cauldronState = frontBlockState.setValue(LayeredCauldronBlock.LEVEL, fillLevel + 1);
+                    setCauldron(level, frontBlockPos, cauldronState, SoundEvents.BOTTLE_EMPTY, GameEvent.FLUID_PLACE);
 
                     // return glass bottle
-                    return this.addOrDispense(pointer, stack, new ItemStack(Items.GLASS_BOTTLE));
+                    return this.addOrDispense(source, stack, new ItemStack(Items.GLASS_BOTTLE));
                 }
             }
             else if (item == Items.GLASS_BOTTLE) {
                 // decrease cauldron level
-                LeveledCauldronBlock.decrementFluidLevel(frontBlockState, world, frontBlockPos);
+                LayeredCauldronBlock.lowerFillLevel(frontBlockState, level, frontBlockPos);
                 // return water bottle
-                return this.addOrDispense(pointer, stack, PotionContentsComponent.createStack(Items.POTION, Potions.WATER));
+                return this.addOrDispense(source, stack, PotionContents.createItemStack(Items.POTION, Potions.WATER));
             }
-            else if (Block.getBlockFromItem(item) instanceof ShulkerBoxBlock) {
+            else if (Block.byItem(item) instanceof ShulkerBoxBlock) {
                 // make sure item isn't plain shulker box
                 if (item != Items.SHULKER_BOX) {
                     // decrease cauldron level
-                    LeveledCauldronBlock.decrementFluidLevel(frontBlockState, world, frontBlockPos);
+                    LayeredCauldronBlock.lowerFillLevel(frontBlockState, level, frontBlockPos);
                     // turn dyed shulker box into undyed shulker box
-                    ItemStack undyedShulkerBox = stack.copyComponentsToNewStack(Blocks.SHULKER_BOX, 1);
+                    ItemStack undyedShulkerBox = stack.transmuteCopy(Blocks.SHULKER_BOX, 1);
 
                     // return undyed shulker box
-                    return this.addOrDispense(pointer, stack, undyedShulkerBox);
+                    return this.addOrDispense(source, stack, undyedShulkerBox);
                 }
             }
-            if (stack.isIn(ItemTags.DYEABLE)) {
+            if (stack.has(DataComponents.DYED_COLOR)) {
                 // check if dyeable item has color
-                if (stack.contains(DataComponentTypes.DYED_COLOR)) {
+                if (stack.has(DataComponents.DYED_COLOR)) {
                     // decrease cauldron level
-                    LeveledCauldronBlock.decrementFluidLevel(frontBlockState, world, frontBlockPos);
+                    LayeredCauldronBlock.lowerFillLevel(frontBlockState, level, frontBlockPos);
                     // remove color
-                    stack.remove(DataComponentTypes.DYED_COLOR);
+                    stack.remove(DataComponents.DYED_COLOR);
                     // return undyed item
                     return stack;
                 }
             }
             else if (item instanceof BannerItem) {
                 // check if banner has layers (https://minecraft.wiki/w/Banner#Patterns)
-                BannerPatternsComponent bannerPatterns = stack.getOrDefault(DataComponentTypes.BANNER_PATTERNS, BannerPatternsComponent.DEFAULT);
+                BannerPatternLayers bannerPatterns = stack.getOrDefault(DataComponents.BANNER_PATTERNS, BannerPatternLayers.EMPTY);
                 if (!bannerPatterns.layers().isEmpty()) {
                     // decrease cauldron level
-                    LeveledCauldronBlock.decrementFluidLevel(frontBlockState, world, frontBlockPos);
+                    LayeredCauldronBlock.lowerFillLevel(frontBlockState, level, frontBlockPos);
                     // copy banner stack, set to one item
                     ItemStack cleanedBanner = stack.copy();
                     cleanedBanner.setCount(1);
                     // remove layer from banner
-                    cleanedBanner.set(DataComponentTypes.BANNER_PATTERNS, bannerPatterns.withoutTopLayer());
+                    cleanedBanner.set(DataComponents.BANNER_PATTERNS, bannerPatterns.removeLast());
                     // return cleaned banner
-                    return this.addOrDispense(pointer, stack, cleanedBanner);
+                    return this.addOrDispense(source, stack, cleanedBanner);
                 }
             }
         }
         else if (frontBlock == Blocks.CAULDRON && isWaterBottle(stack)) {
             // increase cauldron level
-            BlockState cauldronState = Blocks.WATER_CAULDRON.getDefaultState();
-            setCauldron(world, frontBlockPos, cauldronState, SoundEvents.ITEM_BOTTLE_EMPTY, GameEvent.FLUID_PLACE);
+            BlockState cauldronState = Blocks.WATER_CAULDRON.defaultBlockState();
+            setCauldron(level, frontBlockPos, cauldronState, SoundEvents.BOTTLE_EMPTY, GameEvent.FLUID_PLACE);
 
             // return glass bottle
-            return this.addOrDispense(pointer, stack, new ItemStack(Items.GLASS_BOTTLE));
+            return this.addOrDispense(source, stack, new ItemStack(Items.GLASS_BOTTLE));
         }
 
         // fail to dispense
@@ -109,10 +105,10 @@ public class CauldronWaterDispenserBehavior extends DispenserBehaviorHelper {
     }
 
     // set cauldron, play sound, emit game event
-    private static void setCauldron(ServerWorld world, BlockPos pos, BlockState state, SoundEvent soundEvent, RegistryEntry.Reference<GameEvent> gameEvent) {
-        world.setBlockState(pos, state);
-        world.playSound(null, pos, soundEvent, SoundCategory.BLOCKS, 1.0F, 1.0F);
-        world.emitGameEvent(null, gameEvent, pos);
+    private static void setCauldron(ServerLevel level, BlockPos pos, BlockState state, SoundEvent soundEvent, Holder<GameEvent> gameEvent) {
+        level.setBlock(pos, state, Block.UPDATE_ALL);
+        level.playSound(null, pos, soundEvent, SoundSource.BLOCKS, 1.0F, 1.0F);
+        level.gameEvent(null, gameEvent, pos);
     }
     
     private static boolean isWaterBottle(ItemStack stack) {
@@ -120,8 +116,8 @@ public class CauldronWaterDispenserBehavior extends DispenserBehaviorHelper {
             return false;
         }
 
-        PotionContentsComponent content = stack.get(DataComponentTypes.POTION_CONTENTS);
-        return content != null && content.matches(Potions.WATER);
+        PotionContents content = stack.get(DataComponents.POTION_CONTENTS);
+        return content != null && content.is(Potions.WATER);
     }
 
     public static boolean isWaterCauldronItem(ItemStack stack) {
@@ -129,11 +125,11 @@ public class CauldronWaterDispenserBehavior extends DispenserBehaviorHelper {
         Item item = stack.getItem();
         if (item == Items.GLASS_BOTTLE || item instanceof BannerItem || isWaterBottle(stack))
             return true;
-        if (Block.getBlockFromItem(item) instanceof ShulkerBoxBlock) {
+        if (Block.byItem(item) instanceof ShulkerBoxBlock) {
             return item != Items.SHULKER_BOX; // dyed Shulkers only
         }
-        if (stack.isIn(ItemTags.DYEABLE)) {
-            return stack.getComponents().contains(DataComponentTypes.DYED_COLOR);
+        if (stack.has(DataComponents.DYED_COLOR)) {
+            return stack.getComponents().has(DataComponents.DYED_COLOR);
         }
         return false;
     }

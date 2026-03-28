@@ -8,33 +8,28 @@ import carpetextra.helpers.CustomSpawnLists;
 import carpetextra.utils.CarpetExtraTranslations;
 import com.mojang.brigadier.CommandDispatcher;
 import net.fabricmc.api.ModInitializer;
-import net.minecraft.command.CommandRegistryAccess;
-import net.minecraft.server.command.ServerCommandSource;
+import net.minecraft.commands.CommandBuildContext;
+import net.minecraft.commands.CommandSourceStack;
 
 import java.util.Map;
 
-public class CarpetExtraServer implements CarpetExtension, ModInitializer
-{
+public class CarpetExtraServer implements CarpetExtension, ModInitializer {
     @Override
-    public String version()
-    {
+    public String version() {
         return "carpet-extra";
     }
 
-    public static void loadExtension()
-    {
+    public static void loadExtension() {
         CarpetServer.manageExtension(new CarpetExtraServer());
     }
 
     @Override
-    public void onInitialize()
-    {
+    public void onInitialize() {
         CarpetExtraServer.loadExtension();
     }
 
     @Override
-    public void onGameStarted()
-    {
+    public void onGameStarted() {
         // let's /carpet handle our few simple settings
         CarpetServer.settingsManager.parseSettingsClass(CarpetExtraSettings.class);
         CustomSpawnLists.addExtraSpawnRules();
@@ -42,14 +37,13 @@ public class CarpetExtraServer implements CarpetExtension, ModInitializer
     }
 
     @Override
-    public void registerCommands(CommandDispatcher<ServerCommandSource> dispatcher, CommandRegistryAccess commandRegistryAccess)
+    public void registerCommands(CommandDispatcher<CommandSourceStack> dispatcher, CommandBuildContext context)
     {
         // here goes extra stuff
         PingCommand.register(dispatcher);
     }
 
-    @Override
-    public Map<String, String> canHasTranslations(String lang)
+    @Override public Map<String, String> canHasTranslations(String lang)
     {
         return CarpetExtraTranslations.getTranslationFromResourcePath(lang);
     }
